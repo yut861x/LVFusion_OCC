@@ -25,17 +25,11 @@ cd $LVFUSION_ANNOTATION_ROOT
 
 DATA=$LVFUSION_OCC_DATA_ROOT
 
-# 覆盖前备份已有地面标签
-if [ -d "$DATA/ground_labels" ]; then
-  cp -a "$DATA/ground_labels" "$DATA/ground_labels_backup_$(date +%Y%m%d_%H%M%S)"
-fi
-
-# 自动生成全部33°点云逐点地面标签；已有结果时去掉--overwrite可只补缺失帧
+# 自动生成全部33°点云逐点地面标签；已有同名结果会跳过
 python batch_ground_proposal.py "$DATA" \
   --pcd-folder pcds \
   --output-folder ground_labels \
-  --no-image-labels \
-  --overwrite
+  --no-image-labels
 ```
 
 需要人工复核或修正时启动标注工具：
@@ -45,6 +39,7 @@ python main.py "$DATA"
 ```
 
 在地面分割标注界面检查近场、远端、路沿、遮挡和3D框内点；保存结果位于 `ground_labels/<frame>.npz`。
+如需重新生成已有地面标签，先备份原目录，再显式追加 `--overwrite`。
 
 ### 2. 导出OCC标注数据和训练PKL
 
@@ -56,25 +51,20 @@ python batch_occ_rayfree.py "$DATA" \
   --horizontal-fov-deg 33.0 \
   --angular-resolution-deg 0.10 \
   --bbox-padding-xy 0.20 \
-  --limit 10 \
-  --overwrite
+  --limit 10
 ```
 
-确认free、unknown、ignore、障碍物遮挡和坐标方向正确后，备份已有正式标签并全量导出：
+确认free、unknown、ignore、障碍物遮挡和坐标方向正确后全量导出；已有同名NPZ会跳过：
 
 ```bash
-if [ -d "$DATA/pcds_npz_rayfree_13c_z7" ]; then
-  cp -a "$DATA/pcds_npz_rayfree_13c_z7" \
-    "$DATA/pcds_npz_rayfree_13c_z7_backup_$(date +%Y%m%d_%H%M%S)"
-fi
-
 python batch_occ_rayfree.py "$DATA" \
   --output-folder pcds_npz_rayfree_13c_z7 \
   --horizontal-fov-deg 33.0 \
   --angular-resolution-deg 0.10 \
-  --bbox-padding-xy 0.20 \
-  --overwrite
+  --bbox-padding-xy 0.20
 ```
+
+如需覆盖已有射线标签，先备份原目录，再显式追加 `--overwrite`。
 
 随后切换到安装了MMCV/MMDetection3D的LVFusion-OCC训练环境，生成训练索引：
 
@@ -98,6 +88,54 @@ hasco_occ_rayfree_13c_z7_infos_val.pkl        194帧
 ```
 
 更换数据或正式覆盖前，请先执行小批量可视化和数量检查。完整生成规则见[地面标签、Ray-Free OCC NPZ与训练PKL生成](docs/OCC_GROUND_AND_LABEL_GENERATION.md)。
+
+#### `20260903_marvelr_gtlidar` 批处理（只读取 `labels/` 中的3D框）
+
+本地数据位于 `/home/yut/shared/ubuntu_data/LVFusion_OCC/data/20260903_marvelr_gtlidar`。`pcds/`、`imgs/` 和 `labels/` 应有同名帧；地面标签保存到 `ground_labels/`，射线OCC标签保存到新的 `pcds_npz_rayfree_13c_z7/`。以下命令不带 `--overwrite`：已有同名输出会跳过，不会改写旧版 `npz/` 或已有地面标签。
+
+```bash
+export LVFUSION_OCC_DATA_ROOT=/home/yut/shared/ubuntu_data/LVFusion_OCC/data/20260903_marvelr_gtlidar
+export LVFUSION_ANNOTATION_ROOT=/home/yut/shared/ubuntu_data/LVFusion_OCC/data/tool/lv_annotation_tools
+DATA="$LVFUSION_OCC_DATA_ROOT"
+
+conda activate annotation
+cd "$LVFUSION_ANNOTATION_ROOT"
+
+# 批量生成33°点云逐点地面标签；已有 ground_labels/<frame>.npz 时跳过。
+# 此命令还会生成基础语义标签 pcds_npz/，与下面的射线标签目录不同。
+python batch_ground_proposal.py "$DATA" \
+  --pcd-folder pcds \
+  --output-folder ground_labels \
+  --no-image-labels
+
+# 先在独立目录检查前10帧，不覆盖正式标签。
+python batch_occ_rayfree.py "$DATA" \
+  --output-folder pcds_npz_rayfree_13c_z7_test \
+  --horizontal-fov-deg 33.0 \
+  --angular-resolution-deg 0.10 \
+  --bbox-padding-xy 0.20 \
+  --limit 10
+
+# 检查测试标签后，全量生成射线OCC；再次运行会跳过已生成的帧。
+python batch_occ_rayfree.py "$DATA" \
+  --output-folder pcds_npz_rayfree_13c_z7 \
+  --horizontal-fov-deg 33.0 \
+  --angular-resolution-deg 0.10 \
+  --bbox-padding-xy 0.20
+```
+
+射线标签依赖同名的 `pcds/<frame>.pcd`、`labels/<frame>.txt` 和 `ground_labels/<frame>.npz`。当前目录共有414帧；全量运行的预期结果是 `pcds_npz_rayfree_13c_z7/` 下414个Z7 NPZ（`occ_gt` 形状为 `[7, 128, 133]`，12表示视场外ignore）。生成训练/验证PKL时，使用上面的 `hasco_converter.py` 命令；该目录对应331帧训练、83帧验证。
+
+本地 `data/` 下其余四个目录已按同一流程处理，均从 `labels/` 读取3D框。2026-10-12 核对了每帧的地面标签、Ray-Free OCC标签、PKL路径以及 Docker 中的图像和点云加载：
+
+| 数据目录 | 总帧数 | 训练PKL | 验证PKL |
+| --- | ---: | ---: | ---: |
+| `20260821_gtlidar_marvelr` | 165 | 132 | 33 |
+| `20260821_s13ouster_marvelr` | 30 | 24 | 6 |
+| `20260821_s47s13_marvelr` | 134 | 107 | 27 |
+| `sunwin_bevdata_20260807` | 283 | 226 | 57 |
+
+`sunwin_bevdata_20260807` 的点云近端有截断，需使用本地标注工具中支持近端自适应的地面分割版本；少数难例按单帧地面高度复核后补标。批处理中筛出的旧标签保存在数据目录内带 `failed` 或 `rejected` 后缀的备份目录，正式训练只读取无后缀的标签目录。
 
 ### 3. 启动训练
 

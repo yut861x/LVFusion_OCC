@@ -240,6 +240,7 @@ def create_hasco_infos(
     
     # Collect all samples
     all_infos = []
+    samples_by_folder = {}
     
     for date_folder in tqdm(date_folders, desc="Processing date folders"):
         date_name = date_folder.name
@@ -399,6 +400,7 @@ def create_hasco_infos(
             info['has_valid_label'] = has_valid_label
             
             all_infos.append(info)
+            samples_by_folder.setdefault(date_name, []).append(info)
     
     print(f"\nTotal samples collected: {len(all_infos)}")
     
@@ -410,14 +412,6 @@ def create_hasco_infos(
     # This ensures balanced distribution across all date folders
     train_infos = []
     val_infos = []
-    
-    # Group samples by date folder
-    samples_by_folder = {}
-    for info in all_infos:
-        folder_name = info['token'].split('_')[0]  # Extract date folder name from token
-        if folder_name not in samples_by_folder:
-            samples_by_folder[folder_name] = []
-        samples_by_folder[folder_name].append(info)
     
     print(f"\nSplitting samples by date folder (train_ratio={train_ratio:.1%}):")
     

@@ -11,7 +11,9 @@ class_names = [
     'truck', 'large_vehicle', 'construction_vehicle', 'bus', 'car',
     'motorcycle', 'bicycle', 'tricycle', 'pedestrian',
 ]
-data_root = 'data/20260903_marvelr_gtlidar/'
+data_root = __import__('os').environ.get(
+    'LVFUSION_OCC_DATA_ROOT', '../../data/20260903_marvelr_gtlidar'
+).rstrip('/') + '/'
 file_client_args = dict(backend='disk')
 input_modality = dict(use_lidar=True, use_camera=True, use_radar=False,
                       use_map=False, use_external=False)
@@ -79,17 +81,17 @@ data = dict(
     samples_per_gpu=1, workers_per_gpu=2,
     train=dict(
         _delete_=True, type='HascoDataset', data_root=data_root,
-        ann_file=data_root + 'hasco_occ_infos_train.pkl', pipeline=train_pipeline,
+        ann_file=data_root + 'hasco_occ_rayfree_13c_z7_infos_train.pkl', pipeline=train_pipeline,
         classes=class_names, modality=input_modality, test_mode=False,
         box_type_3d='LiDAR', filter_empty_gt=False, load_interval=1),
     val=dict(
         _delete_=True, type='HascoDataset', data_root=data_root,
-        ann_file=data_root + 'hasco_occ_infos_val.pkl', pipeline=val_pipeline,
+        ann_file=data_root + 'hasco_occ_rayfree_13c_z7_infos_val.pkl', pipeline=val_pipeline,
         classes=class_names, modality=input_modality, test_mode=True,
         box_type_3d='LiDAR', filter_empty_gt=False, load_interval=1),
     test=dict(
         _delete_=True, type='HascoDataset', data_root=data_root,
-        ann_file=data_root + 'hasco_occ_infos_val.pkl', pipeline=val_pipeline,
+        ann_file=data_root + 'hasco_occ_rayfree_13c_z7_infos_val.pkl', pipeline=val_pipeline,
         classes=class_names, modality=input_modality, test_mode=True,
         box_type_3d='LiDAR', filter_empty_gt=False, load_interval=1),
 )

@@ -11,7 +11,9 @@ class_names = [
     'truck', 'large_vehicle', 'construction_vehicle', 'bus', 'car',
     'motorcycle', 'bicycle', 'tricycle', 'pedestrian',
 ]
-data_root = 'data/20260903_marvelr_gtlidar/'
+data_root = __import__('os').environ.get(
+    'LVFUSION_OCC_DATA_ROOT', '../../data/20260903_marvelr_gtlidar'
+).rstrip('/') + '/'
 file_client_args = dict(backend='disk')
 input_modality = dict(use_lidar=True, use_camera=True, use_radar=False,
                       use_map=False, use_external=False)
