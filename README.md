@@ -126,16 +126,51 @@ python batch_occ_rayfree.py "$DATA" \
 
 射线标签依赖同名的 `pcds/<frame>.pcd`、`labels/<frame>.txt` 和 `ground_labels/<frame>.npz`。当前目录共有414帧；全量运行的预期结果是 `pcds_npz_rayfree_13c_z7/` 下414个Z7 NPZ（`occ_gt` 形状为 `[7, 128, 133]`，12表示视场外ignore）。生成训练/验证PKL时，使用上面的 `hasco_converter.py` 命令；该目录对应331帧训练、83帧验证。
 
-本地 `data/` 下其余四个目录已按同一流程处理，均从 `labels/` 读取3D框。2026-10-12 核对了每帧的地面标签、Ray-Free OCC标签、PKL路径以及 Docker 中的图像和点云加载：
+本地 `data/` 下其余数据目录均从 `labels/` 读取3D框。2026-10-14 按当前训练配置复核并更新了逐点地面标签、Ray-Free OCC 与训练索引：
 
 | 数据目录 | 总帧数 | 训练PKL | 验证PKL |
 | --- | ---: | ---: | ---: |
-| `20260821_gtlidar_marvelr` | 165 | 132 | 33 |
+| `20260821_gtlidar_marvelr` | 164 | 131 | 33 |
 | `20260821_s13ouster_marvelr` | 30 | 24 | 6 |
 | `20260821_s47s13_marvelr` | 134 | 107 | 27 |
-| `sunwin_bevdata_20260807` | 283 | 226 | 57 |
+| `sunwin_bevdata_20260807` | 279 | 223 | 56 |
 
 `sunwin_bevdata_20260807` 的点云近端有截断，需使用本地标注工具中支持近端自适应的地面分割版本；少数难例按单帧地面高度复核后补标。批处理中筛出的旧标签保存在数据目录内带 `failed` 或 `rejected` 后缀的备份目录，正式训练只读取无后缀的标签目录。
+
+当前训练版以 `20260321-10-45-48` 为基准：`ground_labels/` 为逐点二分类（0 地面、1 非地面）；33°、Z7 的 v4 射线真值在 `pcds_npz_rayfree_13c_z7/`，由同名前视图像、点云、`labels/` 白名单3D框及地面标签生成。2026-10-14 的处理结果：Marvel 的392帧将旧 `ignore` 点转为非地面，保留原有人工地面点；基准训练集的7帧将框内误标的231个地面点改为非地面。Ray-Free OCC 分别更新了基准训练集11帧、Marvel 408帧、Sunwin 97帧。Marvel、Sunwin 和 `20260821_gtlidar_marvelr` 的PKL按现存PCD重新生成；全部六组共1987帧的逐点标签、v4 OCC及PKL路径已通过完整性检查。修改前文件保存在各数据目录的 `*_backup_20261014_pre_training_reprocess`。两帧使用单帧地面高度 -0.5 的8月GT LiDAR标签保持原人工结果；固定采用 -0.3 试分割时这两帧没有地面点。
+
+#### Sunwin 路面覆盖区限定的射线 OCC（2026-10-14）
+
+Sunwin 当前有效的279帧已更新到 `pcds_npz/`；此前的全量Z9标签备份在
+`pcds_npz_backup_20261014_pre_roadmask/`。对应
+`hasco_occ_rayfree_13c_z7_roadmask_infos_{train,val}.pkl`（223/56帧）。
+空间范围、体素尺寸和33°视场与上面的射线 OCC 相同；仅在由 `ground_labels/`
+构建的路面覆盖区内监督 unknown、free 和 other。覆盖区外为 `ignore=12`，
+但33°视场内的白名单3D框仍保留语义类别。
+当前训练版使用 `pcds_npz_rayfree_13c_z7/` 和不带 `_roadmask` 的PKL；
+它们已按现有地面标签重算。训练路面限定版本时应显式选用带
+`_roadmask` 后缀的PKL；对应配置为
+`configs/hascolv/hasco_occ_fusion_sunwin_roadmask_13c_z7.py`。
+
+```bash
+DATA=/home/yut/shared/ubuntu_data/LVFusion_OCC/data/sunwin_bevdata_20260807
+cd /home/yut/shared/ubuntu_data/LVFusion_OCC/data/tool/lv_annotation_tools
+conda activate annotation
+# 正式目录已有标签；复核时先写入独立测试目录。
+python batch_occ_rayfree.py "$DATA" --road-only \
+  --output-folder pcds_npz_roadmask_test --limit 10
+
+# PKL生成需要MMCV；本地可使用已有的 fastbev_bstnn:v1.1 镜像。
+docker run --rm \
+  -v /home/yut/shared/ubuntu_data/LVFusion_OCC:/workspace/LVFusion_OCC \
+  -w /workspace/LVFusion_OCC/project/LVFusion_OCC \
+  fastbev_bstnn:v1.1 /home/ubuntu/miniconda3/bin/python \
+  tools/data_converter/hasco_converter.py \
+  --root-path /workspace/LVFusion_OCC/data/sunwin_bevdata_20260807 \
+  --info-prefix hasco_occ_rayfree_13c_z7_roadmask \
+  --train-ratio 0.8 --require-occ \
+  --occ-dir-name pcds_npz
+```
 
 ### 3. 启动训练
 

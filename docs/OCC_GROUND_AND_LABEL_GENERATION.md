@@ -154,6 +154,8 @@ python batch_ground_proposal.py "$DATA" \
 
 当前二分类批处理会将内部ignore转为non-ground；白名单3D框包含的点始终强制为non-ground，避免障碍物参与地面平面拟合。离散的单个地面点会被过滤，受周围地面支持的1～2个低矮non-ground噪点可恢复为ground。
 
+当前训练版的六组有效数据实际只使用0和1。`ground_z` 等提案参数可按单帧点云高度调整，不能把 `-0.30` 当作所有传感器的固定真值。2026-10-14 统一 Marvel 时保留已有人工确认的地面点，仅将旧 `ignore` 逐点转为非地面；修改前标签有独立备份。逐点地面标签更新后，应重新生成对应的 Ray-Free OCC NPZ，再核对训练PKL是否只索引现存帧。
+
 `ground_labels/<frame>.npz` 字段：
 
 | 字段 | 类型/形状 | 说明 |
@@ -231,6 +233,13 @@ python batch_occ_rayfree.py "$DATA" \
 - `angular-resolution-deg=0.10`：按方位角/俯仰角保留最近回波，避免同一射线穿透前景；
 - `bbox-padding-xy=0.20`：射线接近白名单框时提前截断，防止把框内或框后标成free；
 - `--overwrite`：覆盖同名输出；正式执行前必须先备份或使用新目录。
+
+Sunwin 如需限制训练区域，使用 `--road-only` 和独立输出目录：从逐点
+`ground_labels/` 构建路面BEV覆盖区，覆盖区外写 `ignore=12`，只有33°视场内的
+白名单3D框可以覆盖这些 ignore 体素。射线free、ground终点、non-ground终点及
+unknown只保留在路面覆盖区内。此模式仍使用 `[0,-19.2,-1.0,39.9,19.2,1.8]`
+和 `[0.3,0.3,0.4]`，输出格式版本为5，额外保存 `road_bev_mask [128,133]`。
+未加该参数时维持原版格式版本4及原有标签规则。
 
 ### 4.3 体素赋值优先级
 
