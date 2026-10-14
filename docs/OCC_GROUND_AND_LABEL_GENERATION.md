@@ -140,7 +140,7 @@ python batch_ground_proposal.py "$DATA" \
 
 不加 `--overwrite` 时保留已有文件，只补缺失帧。显式指定 `--pcd-folder pcds` 后只处理33°点云，不运行120° Ouster图像监督流程。
 
-该脚本还可能生成旧格式 `pcds_npz/`；当前训练不读取它，最终训练标签以后续 `pcds_npz_rayfree_13c_z7/` 为准。
+该脚本只生成逐点地面标签与可选的图像稀疏监督；最终训练OCC标签由后续 `batch_occ_rayfree.py` 生成到 `pcds_npz_rayfree_13c_z7/`。
 
 ### 3.3 地面标签规则
 
@@ -412,17 +412,8 @@ ssh hascoai3@11.11.11.156 '
 
 完成后，训练配置 `configs/hascolv/hasco_occ_fusion_20260321_rayfree_13c_z7.py` 会直接读取上述两个PKL及其关联的NPZ。
 
-## 8. 不再用于当前训练的旧目录
+## 8. 旧9层标签
 
-以下目录是早期实验或中间产物，不是当前Z7训练真值：
-
-```text
-pcds_npz/
-imgs_npz/
-occ_fused_npz/
-pcds_npz_rayfree/
-pcds_npz_rayfree_13c/
-pcds_npz_rayfree_13c_test/
-```
-
-不要因为这些目录存在就误认为训练配置会读取它们；应以配置中的PKL和每条样本的 `occ_path` 为准。
+旧9层OCC NPZ、关联PKL和训练产物已清理。当前训练仅使用7层
+`pcds_npz_rayfree_13c_z7/`；Sunwin另有7层路面限定版 `pcds_npz/`。
+以配置中的PKL和每条样本的 `occ_path` 确认实际读取目录。

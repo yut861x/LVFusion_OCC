@@ -91,7 +91,7 @@ hasco_occ_rayfree_13c_z7_infos_val.pkl        194帧
 
 #### `20260903_marvelr_gtlidar` 批处理（只读取 `labels/` 中的3D框）
 
-本地数据位于 `/home/yut/shared/ubuntu_data/LVFusion_OCC/data/20260903_marvelr_gtlidar`。`pcds/`、`imgs/` 和 `labels/` 应有同名帧；地面标签保存到 `ground_labels/`，射线OCC标签保存到新的 `pcds_npz_rayfree_13c_z7/`。以下命令不带 `--overwrite`：已有同名输出会跳过，不会改写旧版 `npz/` 或已有地面标签。
+本地数据位于 `/home/yut/shared/ubuntu_data/LVFusion_OCC/data/20260903_marvelr_gtlidar`。`pcds/`、`imgs/` 和 `labels/` 应有同名帧；地面标签保存到 `ground_labels/`，射线OCC标签保存到 `pcds_npz_rayfree_13c_z7/`。以下命令不带 `--overwrite`：已有同名输出会跳过。
 
 ```bash
 export LVFUSION_OCC_DATA_ROOT=/home/yut/shared/ubuntu_data/LVFusion_OCC/data/20260903_marvelr_gtlidar
@@ -102,7 +102,7 @@ conda activate annotation
 cd "$LVFUSION_ANNOTATION_ROOT"
 
 # 批量生成33°点云逐点地面标签；已有 ground_labels/<frame>.npz 时跳过。
-# 此命令还会生成基础语义标签 pcds_npz/，与下面的射线标签目录不同。
+# 此命令只生成逐点地面标签，不再生成旧版9层OCC。
 python batch_ground_proposal.py "$DATA" \
   --pcd-folder pcds \
   --output-folder ground_labels \
@@ -141,8 +141,7 @@ python batch_occ_rayfree.py "$DATA" \
 
 #### Sunwin 路面覆盖区限定的射线 OCC（2026-10-14）
 
-Sunwin 当前有效的279帧已更新到 `pcds_npz/`；此前的全量Z9标签备份在
-`pcds_npz_backup_20261014_pre_roadmask/`。对应
+Sunwin 当前有效的279帧已更新到7层路面限定版 `pcds_npz/`；旧9层标签及其备份已清理。对应
 `hasco_occ_rayfree_13c_z7_roadmask_infos_{train,val}.pkl`（223/56帧）。
 空间范围、体素尺寸和33°视场与上面的射线 OCC 相同；仅在由 `ground_labels/`
 构建的路面覆盖区内监督 unknown、free 和 other。覆盖区外为 `ignore=12`，
