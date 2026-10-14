@@ -2,6 +2,25 @@
 
 LVFusion-OCC 基于 Fast-BEV 图像反投影与 PointPillars 点云编码，实现前视图像与33° LiDAR点云的二维BEV融合语义OCC。当前输出为12个预测类别、7个高度层，覆盖车辆前方40 m。
 
+## 当前标注规范（训练版 V4）
+
+处理顺序是：同名 `pcds/<frame>.pcd`、`imgs/<frame>` 和最终3D框 `labels/<frame>.txt` → `ground_labels/<frame>.npz` → `pcds_npz_rayfree_13c_z7/<frame>.npz` → 训练/验证 PKL。当前六组训练数据均按此规范使用；修改逐点路面标签或最终3D框后，须重新生成对应帧的 OCC，并检查 PKL 仍指向正式 OCC 目录。以下“7层”只指 OCC 高度网格，**路面分割始终覆盖原始33°点云的全部点**，不按高度层或 OCC 范围裁剪。
+
+### 路面分割：逐点标签
+
+- `ground_labels/<frame>.npz` 的 `point_labels` 与原始 `pcds/<frame>.pcd` **逐点同序、数量相同**：`0` 为地面，`1` 为非地面。文件格式支持 `2=ignore`，但当前训练版六组正式逐点标签均为 `0/1`；不要把 OCC 的 `ignore=12` 套用到逐点标签。
+- 自动预分割参数来自标注工具的 `ground_config.json`，默认参考地面高度 `ground_z=-0.30 m`、容差 `0.08 m`、坡度 `0.03`、网格 `0.25 m`。地面高度可按单帧传感器位置人工修正，不要求所有帧固定为 `-0.30 m`。批处理会把内部未判定点归为非地面，并清理孤立地面点、恢复小块低矮非地面点。
+- `labels/` 中的白名单3D框（truck、large_vehicle、construction_vehicle、bus、car、motorcycle、bicycle、tricycle、pedestrian）内点必须是非地面。自动结果仍需在地面分割标注界面复核近场、远处连续路面、路沿、遮挡和框内点；人工修正后保存到同名 `ground_labels/` 文件。
+- NPZ 同时保存点数、PCD SHA-256 与生成参数，读取时校验点数及原始点云指纹。不要在不更新标签的情况下替换对应 PCD。
+
+### 射线 OCC：7层 V4 训练真值
+
+- 正式文件为 `pcds_npz_rayfree_13c_z7/<frame>.npz`（`format_version=4`）；输入是同名33°点云、逐点路面标签及 `labels/` 的最终3D框。空间范围按 XYZ 为 `[0, -19.2, -1.0, 39.9, 19.2, 1.8] m`，体素尺寸 `[0.3, 0.3, 0.4] m`，`occ_gt` 按 ZYX 排列为 `[7, 128, 133]`。水平方向只标注前方 **33°**；范围内但视场外为 `12=ignore`。
+- 视场内未观测及障碍物后的未知体素为 `0=unknown`，**即使所在 BEV 位置没有路面点，也不额外改成 ignore**。V4 不使用路面覆盖区掩码；`valid_mask` 为 `occ_gt != 12`。
+- 点云仅取网格内、视场内且距原点大于 `0.5 m` 的点。以 `0.10°` 方位角/俯仰角格取最近回波；从传感器到回波前的射线标为 `11=free`，射线遇白名单框前按 XY `0.20 m` 外扩截断，避免把框内或其后方误标为 free。地面回波终点仅在可靠连续路面最远 X 以内标为 `11=free`；非地面回波终点标为 `10=other`；白名单3D框体素最后覆盖为 `1–9` 的语义类别。优先顺序为 **白名单框 > 非地面回波 > 地面回波/射线 free > unknown > ignore**。
+- 类别编号：`0 unknown`；`1 truck`；`2 large_vehicle`；`3 construction_vehicle`；`4 bus`；`5 car`；`6 motorcycle`；`7 bicycle`；`8 tricycle`；`9 pedestrian`；`10 other`；`11 free`；`12 ignore`。模型预测前12类（`0–11`），`12` 只用于忽略损失。
+- 使用下文不带 `--road-only` 的命令生成 V4。Sunwin 另存的 `pcds_npz/` 是**路面覆盖区限定的 V5 查看/实验标签**，不属于当前训练真值；其带 `_roadmask` 的 PKL 和配置也不用于当前 V4 训练。查看该目录时不要将 GUI 显示的 `pcds_npz/` 误认为训练所读的 `pcds_npz_rayfree_13c_z7/`。
+
 
 ## 快速开始
 
@@ -126,22 +145,25 @@ python batch_occ_rayfree.py "$DATA" \
 
 射线标签依赖同名的 `pcds/<frame>.pcd`、`labels/<frame>.txt` 和 `ground_labels/<frame>.npz`。当前目录共有414帧；全量运行的预期结果是 `pcds_npz_rayfree_13c_z7/` 下414个Z7 NPZ（`occ_gt` 形状为 `[7, 128, 133]`，12表示视场外ignore）。生成训练/验证PKL时，使用上面的 `hasco_converter.py` 命令；该目录对应331帧训练、83帧验证。
 
-本地 `data/` 下其余数据目录均从 `labels/` 读取3D框。2026-10-14 按当前训练配置复核并更新了逐点地面标签、Ray-Free OCC 与训练索引：
+本地 `data/` 下六组正式训练数据均从 `labels/` 读取3D框，使用 V4 射线 OCC 和不带 `_roadmask` 的训练索引。当前数量如下：
 
 | 数据目录 | 总帧数 | 训练PKL | 验证PKL |
 | --- | ---: | ---: | ---: |
+| `20260321-10-45-48` | 966 | 772 | 194 |
 | `20260821_gtlidar_marvelr` | 164 | 131 | 33 |
 | `20260821_s13ouster_marvelr` | 30 | 24 | 6 |
 | `20260821_s47s13_marvelr` | 134 | 107 | 27 |
+| `20260903_marvelr_gtlidar` | 414 | 331 | 83 |
 | `sunwin_bevdata_20260807` | 279 | 223 | 56 |
+| **合计** | **1987** | **1588** | **399** |
 
 `sunwin_bevdata_20260807` 的点云近端有截断，需使用本地标注工具中支持近端自适应的地面分割版本；少数难例按单帧地面高度复核后补标。批处理中筛出的旧标签保存在数据目录内带 `failed` 或 `rejected` 后缀的备份目录，正式训练只读取无后缀的标签目录。
 
-当前训练版以 `20260321-10-45-48` 为基准：`ground_labels/` 为逐点二分类（0 地面、1 非地面）；33°、Z7 的 v4 射线真值在 `pcds_npz_rayfree_13c_z7/`，由同名前视图像、点云、`labels/` 白名单3D框及地面标签生成。2026-10-14 的处理结果：Marvel 的392帧将旧 `ignore` 点转为非地面，保留原有人工地面点；基准训练集的7帧将框内误标的231个地面点改为非地面。Ray-Free OCC 分别更新了基准训练集11帧、Marvel 408帧、Sunwin 97帧。Marvel、Sunwin 和 `20260821_gtlidar_marvelr` 的PKL按现存PCD重新生成；全部六组共1987帧的逐点标签、v4 OCC及PKL路径已通过完整性检查。修改前文件保存在各数据目录的 `*_backup_20261014_pre_training_reprocess`。两帧使用单帧地面高度 -0.5 的8月GT LiDAR标签保持原人工结果；固定采用 -0.3 试分割时这两帧没有地面点。
+当前训练版以 `20260321-10-45-48` 为基准：`ground_labels/` 为逐点二分类（0 地面、1 非地面）；33°、Z7 的 V4 射线真值在 `pcds_npz_rayfree_13c_z7/`，由同名点云、`labels/` 白名单3D框及地面标签生成，前视图像作为模型输入。2026-10-14 的处理结果：Marvel 的392帧将旧 `ignore` 点转为非地面，保留原有人工地面点；基准训练集的7帧将框内误标的231个地面点改为非地面。Ray-Free OCC 分别更新了基准训练集11帧、Marvel 408帧、Sunwin 97帧。Marvel、Sunwin 和 `20260821_gtlidar_marvelr` 的PKL按现存PCD重新生成；全部六组共1987帧的逐点标签、V4 OCC及PKL路径已通过完整性检查。修改前文件保存在各数据目录的 `*_backup_20261014_pre_training_reprocess`。两帧使用单帧地面高度 -0.5 的8月GT LiDAR标签保持原人工结果；固定采用 -0.3 试分割时这两帧没有地面点。
 
-#### Sunwin 路面覆盖区限定的射线 OCC（2026-10-14）
+#### Sunwin 的路面限定 V5 查看/实验副本（不用于当前 V4 训练）
 
-Sunwin 当前有效的279帧已更新到7层路面限定版 `pcds_npz/`；旧9层标签及其备份已清理。对应
+Sunwin 另存的279帧 V5 路面限定版位于 `pcds_npz/`；旧9层标签及其备份已清理。对应
 `hasco_occ_rayfree_13c_z7_roadmask_infos_{train,val}.pkl`（223/56帧）。
 空间范围、体素尺寸和33°视场与上面的射线 OCC 相同；仅在由 `ground_labels/`
 构建的路面覆盖区内监督 unknown、free 和 other。覆盖区外为 `ignore=12`，
