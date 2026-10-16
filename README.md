@@ -83,7 +83,18 @@ python batch_occ_rayfree.py "$DATA" \
   --bbox-padding-xy 0.20
 ```
 
-如需覆盖已有射线标签，先备份原目录，再显式追加 `--overwrite`。
+如需全量覆盖已有射线标签，显式追加 `--overwrite`。
+
+人工修改并保存某一帧的地面标签后，在 OCC 窗口点击“按最新地面标注刷新V4”，即可直接覆盖并预览该帧的 V4 OCC，其他帧不处理。也可用命令行执行：
+
+```bash
+FRAME=1751449910_245548  # 改成实际帧名，不含扩展名
+python batch_occ_rayfree.py "$DATA" --frame "$FRAME" --overwrite
+```
+
+命令读取同名 `pcds/`、`ground_labels/` 和 `labels/`，将结果写回
+`pcds_npz_rayfree_13c_z7/$FRAME.npz`。训练 PKL 的 `occ_path` 是文件路径；
+路径不变时无需重新生成 PKL，重新打开 OCC 窗口即可查看更新结果。
 
 随后切换到安装了MMCV/MMDetection3D的LVFusion-OCC训练环境，生成训练索引：
 
