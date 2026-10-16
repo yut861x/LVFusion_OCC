@@ -19,7 +19,7 @@ LVFusion-OCC 基于 Fast-BEV 图像反投影与 PointPillars 点云编码，实�
 - 视场内未观测及障碍物后的未知体素为 `0=unknown`，**即使所在 BEV 位置没有路面点，也不额外改成 ignore**。V4 不使用路面覆盖区掩码；`valid_mask` 为 `occ_gt != 12`。
 - 点云仅取网格内、视场内且距原点大于 `0.5 m` 的点。以 `0.10°` 方位角/俯仰角格取最近回波；从传感器到回波前的射线标为 `11=free`，射线遇白名单框前按 XY `0.20 m` 外扩截断，避免把框内或其后方误标为 free。地面回波终点仅在可靠连续路面最远 X 以内标为 `11=free`；非地面回波终点标为 `10=other`；白名单3D框体素最后覆盖为 `1–9` 的语义类别。优先顺序为 **白名单框 > 非地面回波 > 地面回波/射线 free > unknown > ignore**。
 - 类别编号：`0 unknown`；`1 truck`；`2 large_vehicle`；`3 construction_vehicle`；`4 bus`；`5 car`；`6 motorcycle`；`7 bicycle`；`8 tricycle`；`9 pedestrian`；`10 other`；`11 free`；`12 ignore`。模型预测前12类（`0–11`），`12` 只用于忽略损失。
-- 使用下文不带 `--road-only` 的命令生成 V4。Sunwin 另存的 `pcds_npz/` 是**路面覆盖区限定的 V5 查看/实验标签**，不属于当前训练真值；其带 `_roadmask` 的 PKL 和配置也不用于当前 V4 训练。查看该目录时不要将 GUI 显示的 `pcds_npz/` 误认为训练所读的 `pcds_npz_rayfree_13c_z7/`。
+- 使用下文不带 `--road-only` 的命令生成 V4。OCC 标注子窗口默认只加载 `pcds_npz_rayfree_13c_z7/` 的 V4；缺失时提示，不自动回退其他版本。Sunwin 另存的 `pcds_npz/` 是**路面覆盖区限定的 V5 查看/实验标签**，不属于当前训练真值；其带 `_roadmask` 的 PKL 和配置也不用于当前 V4 训练。如需查看 V5，可在 V4 子窗口中手动“加载 NPZ”。
 
 
 ## 快速开始
