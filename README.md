@@ -4,7 +4,7 @@ LVFusion-OCC 基于 Fast-BEV 图像反投影与 PointPillars 点云编码，实�
 
 ## 当前标注规范（训练版 V4）
 
-处理顺序是：同名 `pcds/<frame>.pcd`、`imgs/<frame>` 和最终3D框 `labels/<frame>.txt` → `ground_labels/<frame>.npz` → `pcds_npz_rayfree_13c_z7/<frame>.npz` → 训练/验证 PKL。当前六组训练数据均按此规范使用；修改逐点路面标签或最终3D框后，须重新生成对应帧的 OCC，并检查 PKL 仍指向正式 OCC 目录。以下“7层”只指 OCC 高度网格，**路面分割始终覆盖原始33°点云的全部点**，不按高度层或 OCC 范围裁剪。
+处理顺序是：同名 `pcds/<frame>.pcd`、`imgs/<frame>` 和最终3D框 `labels/<frame>.txt` → `ground_labels/<frame>.npz` → `pcds_npz_rayfree_13c_z7/<frame>.npz` → 训练/验证 PKL。当前六组训练数据均按此规范使用；修改逐点路面标签或最终3D框后，须重新生成对应帧的 OCC，并检查 PKL 仍指向正式 OCC 目录。以下“7层”只指 OCC 高度网格，**路面分割始终覆盖原始33°点云的全部点**，不按高度层或 OCC 范围裁剪。地面分割窗口只显示前方33°、X 0–39.9 m、Z −1.0–1.8 m 的 V4 范围，显示筛选不改变整帧自动分割和逐点标签的覆盖范围。
 
 ### 路面分割：逐点标签
 
