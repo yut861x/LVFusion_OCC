@@ -10,7 +10,7 @@ LVFusion-OCC 基于 Fast-BEV 图像反投影与 PointPillars 点云编码，实�
 
 - `ground_labels/<frame>.npz` 的 `point_labels` 与原始 `pcds/<frame>.pcd` **逐点同序、数量相同**：`0` 为地面，`1` 为非地面，`2` 为不确定（ignore），`3` 为噪声或虚假回波（noise）。旧三类文件仍可读取；新保存为四类文件。当前六组已生成的正式标签仍以 `0/1` 为主；不要把 OCC 的 `ignore=12` 套用到逐点标签。
 - 自动预分割参数来自标注工具的 `ground_config.json`，默认参考地面高度 `ground_z=-0.30 m`、容差 `0.08 m`、坡度 `0.03`、网格 `0.25 m`。地面高度可按单帧传感器位置人工修正，不要求所有帧固定为 `-0.30 m`。批处理会把内部未判定点归为非地面，并清理孤立地面点、恢复小块低矮非地面点。
-- `labels/` 中的白名单3D框（truck、large_vehicle、construction_vehicle、bus、car、motorcycle、bicycle、tricycle、pedestrian）内有效点必须是非地面；确认为虚假回波的点可标为 `noise`。自动结果仍需在地面分割标注界面复核近场、远处连续路面、路沿、遮挡和框内点；人工修正后保存到同名 `ground_labels/` 文件。
+- `labels/` 中的白名单3D框（truck、large_vehicle、construction_vehicle、bus、car、motorcycle、bicycle、tricycle、pedestrian）内点必须是非地面；`noise` 也不能覆盖框内点属性。自动结果仍需在地面分割标注界面复核近场、远处连续路面、路沿、遮挡和框内点；人工修正后保存到同名 `ground_labels/` 文件。
 - NPZ 同时保存点数、PCD SHA-256 与生成参数，读取时校验点数及原始点云指纹。不要在不更新标签的情况下替换对应 PCD。
 
 ### 射线 OCC：7层 V4 训练真值
