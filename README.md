@@ -204,7 +204,41 @@ docker run --rm \
   --occ-dir-name pcds_npz
 ```
 
-### 3. 启动训练
+### 3. 六组 V4 数据联合训练
+
+`configs/hascolv/hasco_occ_fusion_all_rayfree_13c_z7.py` 文件顶部的
+`training_data_paths` 是参与训练的数据目录列表。新增一组数据时，先在该目录生成
+`hasco_occ_rayfree_13c_z7_infos_{train,val}.pkl` 和
+`pcds_npz_rayfree_13c_z7/`，再把目录名加入列表。列表项也可写绝对路径。
+
+`LVFUSION_OCC_DATA_ROOT` 应指向包含这些目录的 **data 父目录**，例如容器内的
+`/workspace/LVFusion_OCC/data`；不再指向某一组数据。当前六组共 1980 帧，
+训练 1582 帧、验证 398 帧。服务器启动命令：
+
+```bash
+docker start lvfusion_occ
+
+docker exec \
+  -e LVFUSION_OCC_DATA_ROOT=$LVFUSION_OCC_DATA_ROOT \
+  -e PYTHONPATH=/workspace/LVFusion_OCC \
+  -w /workspace/LVFusion_OCC \
+  lvfusion_occ \
+  bash -lc '
+    /home/ubuntu/miniconda3/bin/python -m torch.distributed.launch \
+      --nproc_per_node=1 \
+      --master_port=29503 \
+      tools/train.py \
+      configs/hascolv/hasco_occ_fusion_all_rayfree_13c_z7.py \
+      --work-dir work_dirs/hasco_occ_all_v4_24e \
+      --launcher pytorch \
+      --wo-wandb
+  '
+```
+
+`LVFUSION_OCC_DATA_ROOT` 要与容器内实际可见的数据父目录一致。配置沿用现有
+24 epoch 训练设置和 20260321 基准训练的类别权重。
+
+#### 单组基准训练命令
 
 服务器工程为 `$LVFUSION_OCC_ROOT`，容器为 `lvfusion_occ`：
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run OCC inference and render image/point-cloud/GT/prediction panels."""
 import argparse
+from bisect import bisect_right
 import json
 import os
 from pathlib import Path
@@ -68,6 +69,15 @@ def to_numpy(value):
     if torch.is_tensor(value):
         value = value.detach().cpu().numpy()
     return np.asarray(value)
+
+
+def get_data_info(dataset, index):
+    """Read sample metadata from a single dataset or a ConcatDataset."""
+    if hasattr(dataset, 'datasets') and hasattr(dataset, 'cumulative_sizes'):
+        part = bisect_right(dataset.cumulative_sizes, index)
+        offset = 0 if part == 0 else dataset.cumulative_sizes[part - 1]
+        return get_data_info(dataset.datasets[part], index - offset)
+    return dataset.get_data_info(index)
 
 
 def top_surface(volume, confidence=None, threshold=0.0):
@@ -184,7 +194,7 @@ def main():
         confusion_update(confusion, pred, gt, valid, cfg.model.occ_head.num_classes)
         accuracy = float((pred[valid] == gt[valid]).mean()) if valid.any() else float('nan')
 
-        sample = dataset.get_data_info(index)
+        sample = get_data_info(dataset, index)
         image_path = sample['img_info'][0]['filename']
         image = cv2.imread(image_path)
         if image is None:
